@@ -356,8 +356,9 @@ class Annotation(object):
         file : file object
         """
         for segment, _, label in self.itertracks(yield_label=True):
+            uri = self.uri if self.uri else "<NA>"
             line = (
-                f'SPEAKER {self.uri} 1 {segment.start:.3f} {segment.duration:.3f} '
+                f'SPEAKER {uri} 1 {segment.start:.3f} {segment.duration:.3f} '
                 f'<NA> <NA> {label} <NA> <NA>\n'
             )
             file.write(line)
@@ -370,7 +371,7 @@ class Annotation(object):
         support : Segment, Timeline or Annotation
             If `support` is a `Timeline`, its support is used.
             Else, if `support` is an `Annotation` cropping is done only if
-                both annotations share the same labels  
+                both annotations share the same labels
         mode : {'strict', 'loose', 'intersection'}, optional
             Controls how segments that are not fully included in `support` are
             handled. 'strict' mode only keeps fully included segments. 'loose'
