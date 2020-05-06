@@ -52,9 +52,8 @@ from scipy.sparse.csgraph import connected_components
 def linkage(X, method="single", metric="euclidean", **kwargs):
     """Same as scipy.cluster.hierarchy.linkage with more metrics and methods
     """
-
-    if method == "pool":
-        return pool(X, metric=metric, **kwargs)
+    if method in {"average", "centroid"}:
+        return pool(X, metric=metric, pooling_func=method, **kwargs)
 
     # corner case when using non-euclidean distances with methods
     # designed for the euclidean distance
