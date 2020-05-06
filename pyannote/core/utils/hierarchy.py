@@ -296,7 +296,7 @@ def pool(
 
     # take "cannot link" constraints into account by artifically setting the
     # distance between corresponding observations to infinity.
-    if cannot_link is not None:
+    if cannot_link:
         u, v = zip(*cannot_link)
         D[to_condensed(2 * n - 1, u, v)] = np.infty
 
@@ -304,7 +304,7 @@ def pool(
     # observations regardless of their actual similarity. this might lead to
     # weird clustering results when merged observations are very dissimilar.
 
-    if must_link is not None:
+    if must_link:
         # find connected components in "must link" graph
         graph = np.zeros((n, n), dtype=np.int8)
         for u, v in must_link:
