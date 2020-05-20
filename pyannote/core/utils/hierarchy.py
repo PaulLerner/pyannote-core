@@ -48,16 +48,9 @@ from scipy.spatial.distance import squareform
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 
+
 def linkage(X, method="single", metric="euclidean", **kwargs):
     """Same as scipy.cluster.hierarchy.linkage with more metrics and methods
-
-    Returns
-    -------
-    Z: np.ndarray
-        (n_samples - 1, 4) clustering dendrogram
-    (i, j): tuple of int
-        indexes of representative embeddings of two clusters we'd like some feedback on
-        (None, None) if method not in {"average", "centroid"}
     """
     if method in {"average", "centroid"}:
         return pool(X, metric=metric, pooling_func=method, **kwargs)
@@ -75,7 +68,7 @@ def linkage(X, method="single", metric="euclidean", **kwargs):
     distance = pdist(X, metric=metric)
     return scipy.cluster.hierarchy.linkage(
         distance, method=method, metric=metric, **kwargs
-    ), (None, None)
+    )
 
 
 def _average_pooling_func(
@@ -152,18 +145,11 @@ def pool(
         Distance metric. Defaults to "euclidean"
     pooling_func: callable, optional
         Defaults to "average".
-    cannot_link, must_link : list of pairs
-        Pairs of indices of observations that cannot be (resp. must be) linked.
-        For instance, [(1, 2), (5, 6)] means that first and second observations
-        cannot end up (resp. must end up) in the same cluster,
-        as well as 5th and 6th observations.
 
-    Returns
-    -------
-    Z: np.ndarray
-        (n_samples - 1, 4) clustering dendrogram
-    (i, j): tuple of int
-        indexes of representative embeddings of two clusters we'd like some feedback on
+    cannot_link : list of pairs
+        Pairs of indices of observations that cannot be linked. For instance,
+        [(1, 2), (5, 6)] means that first and second observations cannot end up
+        in the same cluster, as well as 5th and 6th obversations.
     """
 
     if pooling_func == "average":
@@ -351,60 +337,8 @@ def pool(
 
         _ = merge(u, v, iteration)
 
-    # find two clusters we're unsure about ("should they be merged ?")
-    for i in range(len(Z) - 1, 0, -1):
-        distance = Z[i, 2]
-        if distance == np.infty:
-            continue
-
-        # find clusters k1 and k2 that were merged at iteration i
-        current = scipy.cluster.hierarchy.fcluster(
-            Z, Z[i, 2], criterion="distance"
-        )
-        previous = scipy.cluster.hierarchy.fcluster(
-            Z, Z[i - 1, 2], criterion="distance",
-        )
-        n_current, n_previous = max(current), max(previous)
-
-        # TODO handle these corner cases better
-        if n_current >= n_previous or n_previous - n_current > 1:
-            continue
-        C = np.zeros((n_current, n_previous))
-        for k_current, k_previous in zip(current, previous):
-            C[k_current - 1, k_previous - 1] += 1
-        k1, k2 = (
-                np.where(C[int(np.where(np.sum(C > 0, axis=1) == 2)[0])] > 0)[0]
-                + 1
-        )
-
-        # find centroids of clusters k1 and k2
-        indices1 = np.where(previous == k1)[0]
-        i1 = indices1[
-            np.argmin(
-                np.mean(
-                    squareform(pdist(X[indices1], metric="cosine")),
-                    axis=1,
-                )
-            )
-        ]
-        indices2 = np.where(previous == k2)[0]
-        i2 = indices2[
-            np.argmin(
-                np.mean(
-                    squareform(pdist(X[indices2], metric="cosine")),
-                    axis=1,
-                )
-            )
-        ]
-
-        # did the human in the loop already provide feedback on this pair of segments?
-        pair = tuple(sorted([i1, i2]))
-        if pair in cannot_link or pair in must_link:
-            # do not annotate the same pair twice
-            continue
-        return Z, (i1, i2)
-
-    return Z, (None, None)
+    # return dendrogram
+    return Z
 
 
 def fcluster_auto(X, Z, metric='euclidean'):
