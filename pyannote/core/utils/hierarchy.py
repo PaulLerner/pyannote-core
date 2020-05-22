@@ -145,11 +145,11 @@ def pool(
         Distance metric. Defaults to "euclidean"
     pooling_func: callable, optional
         Defaults to "average".
-
-    cannot_link : list of pairs
-        Pairs of indices of observations that cannot be linked. For instance,
-        [(1, 2), (5, 6)] means that first and second observations cannot end up
-        in the same cluster, as well as 5th and 6th obversations.
+    cannot_link, must_link : list of pairs
+        Pairs of indices of observations that cannot be (resp. must be) linked.
+        For instance, [(1, 2), (5, 6)] means that first and second observations
+        cannot end up (resp. must end up) in the same cluster,
+        as well as 5th and 6th observations.
     """
 
     if pooling_func == "average":
@@ -199,7 +199,20 @@ def pool(
     if "d" in signature(pooling_func).parameters:
         d = squareform(d)
 
-    def merge(u, v, iteration, constraint=False):
+    # propagate "cannot link" constraints to must-linked observations
+    old_cannot_link = cannot_link.copy()
+    for u, v in must_link:
+        for x, y in old_cannot_link:
+            if u == x:
+                cannot_link.append((v, y))
+            elif u == y:
+                cannot_link.append((v, x))
+            if v == x:
+                cannot_link.append((u, y))
+            elif v == y:
+                cannot_link.append((u, x))
+
+    def merge(u, v, iteration):
         """Merge two clusters
 
         Parameters
@@ -208,28 +221,14 @@ def pool(
             Indices of clusters to merge.
         iteration : int
             Current clustering iteration.
-        constraint : bool
-            Set to True to indicate that this merge is coming from a 'must_link'
-            constraint. This will artificially set Z[iteration, 2] to 0.0.
 
         Returns
         -------
         uv : int
             Indices of resulting cluster.
-
-        Raises
-        ------
-        "ValueError" in case of conflict between "must_link" and "cannot_link"
-        constraints.
-
         """
 
         k = to_condensed(2 * n - 1, u, v)
-
-        if constraint and D[k] == np.infty:
-            w = u if u < n else v
-            msg = f"Found a conflict between 'must_link' and 'cannot_link' constraints for observation {w}."
-            raise ValueError(msg)
 
         # keep track of ...
         # ... which clusters are merged at this iteration
@@ -237,7 +236,7 @@ def pool(
         Z[iteration, 1] = u if Z[iteration, 0] == v else v
 
         # ... their distance
-        Z[iteration, 2] = 0.0 if constraint else D[k]
+        Z[iteration, 2] = D[k]
 
         # ... the size of the newly formed cluster
         Z[iteration, 3] = S[u] + S[v]
@@ -299,28 +298,6 @@ def pool(
     if cannot_link:
         u, v = zip(*cannot_link)
         D[to_condensed(2 * n - 1, u, v)] = np.infty
-
-    # take "must link" constraints into account by merging corresponding
-    # observations regardless of their actual similarity. this might lead to
-    # weird clustering results when merged observations are very dissimilar.
-
-    if must_link:
-        # find connected components in "must link" graph
-        graph = np.zeros((n, n), dtype=np.int8)
-        for u, v in must_link:
-            graph[u, v] = 1
-        _, K_init = connected_components(
-            csr_matrix(graph), directed=False, return_labels=True
-        )
-
-        # merge observations within each connected components
-        for k, count in Counter(K_init).items():
-            if count < 2:
-                continue
-            u, *others = np.where(K_init == k)[0]
-            for v in others:
-                u = merge(u, v, iteration, constraint=True)
-                iteration += 1
 
     # iterate until one cluster remains
     for iteration in range(iteration, n - 1):
